@@ -2,12 +2,16 @@
 <html>
 <head>
     <title>スマホWebアプリ</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </head>
 <body>
-    <h1>温度と位置情報2</h1>
+    <h1>温度と位置情報3</h1>
     <div id="location">位置情報: 取得中...</div>
     <div id="temperature">温度: 未受信</div>
     <button onclick="postData()">データをサーバーに送信</button>
+    <!-- 地図を表示するためのdiv -->
+    <div id="map" style="height: 400px;"></div>
 
     <script>
         // 位置情報を取得し続ける
@@ -72,10 +76,42 @@
             .catch((error) => console.error('Error:', error));
         }
 
+        
+        // 地図を初期化して現在地を表示する
+        function initMap() {
+            const map = L.map('map').setView([0, 0], 13); // 仮の中心座標とズームレベル
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            function updateMap(position) {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+                map.setView([latitude, longitude], 13);
+            }
+
+            function error() {
+                console.log("位置情報が取得できませんでした。");
+            }
+
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(updateMap, error, {
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 0
+                });
+            } else {
+                console.log("Geolocationはこのブラウザでは使用できません。");
+            }
+        }
+
+
         // ページが読み込まれたら実行
         window.onload = function() {
             updateLocation();
             connectAndStartNotifications();
+            initMap(); // 地図を初期化
         };
     </script>
 </body>
