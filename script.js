@@ -14,7 +14,7 @@ document.getElementById('sendLocation').addEventListener('click', function() {
             };
 
             // ここでローカルサーバーのURLを指定します。例: http://localhost:3000/location
-            const response = await fetch('http://http://localhost:3000/location', options);
+            const response = await fetch('http://localhost:3000/location', options);
             const jsonResponse = await response.json();
             console.log(jsonResponse);
         }, error => {
