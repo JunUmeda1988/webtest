@@ -1,13 +1,49 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Location Sender</title>
+    <title>スマホWebアプリ</title>
 </head>
 <body>
-    <button id="sendLocation">位置情報を送信</button>
-    <div id="locationDisplay"></div>
-    <script src="script.js"></script>
+    <h1>温度と位置情報</h1>
+    <div id="location">位置情報: 取得中...</div>
+    <div id="temperature">温度: 未受信</div>
+    <button onclick="postData()">データをサーバーに送信</button>
+
+    <script>
+        // 位置情報を取得する
+        navigator.geolocation.getCurrentPosition(function(position) {
+            document.getElementById('location').textContent = 
+                '位置情報: 緯度 ' + position.coords.latitude + 
+                ', 経度 ' + position.coords.longitude;
+        });
+
+        // M5Stackからの温度データを受信する（疑似的な例）
+        function receiveTemperatureData() {
+            // ここでは疑似的に温度データを生成しています
+            var temperature = Math.random() * 30;
+            document.getElementById('temperature').textContent = '温度: ' + temperature.toFixed(2) + '°C';
+        }
+
+        // 30秒ごとに温度データを更新する
+        setInterval(receiveTemperatureData, 30000);
+
+        // データをサーバーにPOSTする
+        function postData() {
+            var location = document.getElementById('location').textContent;
+            var temperature = document.getElementById('temperature').textContent;
+
+            // ここでサーバーへのPOSTリクエストを行います
+            fetch('サーバーのURL', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({location: location, temperature: temperature}),
+            })
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch((error) => console.error('Error:', error));
+        }
+    </script>
 </body>
 </html>
