@@ -1,124 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
+    <meta charset="UTF-8">
     <title>スマホWebアプリ</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <style>
-    #map {
-        height: 600px;
-        width: 100%;
-    }
+        #map {
+            height: 600px;
+            width: 100%;
+        }
     </style>
-    
 </head>
 <body>
-    <h1>温度と位置情報3</h1>
+    <h1>温度と位置情報4</h1>
     <div id="location">位置情報: 取得中...</div>
     <div id="temperature">温度: 未受信</div>
-    <button onclick="postData()">データをサーバーに送信</button>
-    <!-- 地図を表示するためのdiv -->
+    <button id="startButton">スタート</button>
+    <button id="stopButton">ストップ</button>
     <div id="map"></div>
 
     <script>
-        // 位置情報を取得し続ける
-        function updateLocation() {
-            navigator.geolocation.watchPosition(function(position) {
-                document.getElementById('location').textContent = 
-                    '位置情報: 緯度 ' + position.coords.latitude + 
-                    ', 経度 ' + position.coords.longitude;
-            }, function(error) {
-                console.log('位置情報の取得に失敗しました:', error);
-            }, {
-                enableHighAccuracy: true,
-                timeout: 5000,
-                maximumAge: 0
-            });
-        }
+        let map;
+        let watchID;
+        let currentLocationMarker = null;
 
-        // BLEデバイスからの温度データを受信する
-        async function connectAndStartNotifications() {
-            try {
-                console.log('BLEデバイスに接続しています...');
-                const device = await navigator.bluetooth.requestDevice({
-                    // 実際にはM5Stackで設定したサービスUUIDを使用してください
-                    filters: [{services: ['heart_rate']}]
-                });
-
-                const server = await device.gatt.connect();
-                console.log('BLEデバイスに接続しました');
-
-                // 実際のサービスとキャラクタリスティックのUUIDを使用してください
-                const service = await server.getPrimaryService('heart_rate');
-                const characteristic = await service.getCharacteristic('heart_rate_measurement');
-
-                characteristic.startNotifications();
-
-                characteristic.addEventListener('characteristicvaluechanged', event => {
-                    const value = event.target.value;
-                    // 温度データを解析するロジックをここに実装
-                    const temperature = value.getUint8(0); // この行はデータ形式に応じて変更してください
-                    console.log(`受信した温度: ${temperature}`);
-                    document.getElementById('temperature').textContent = `温度: ${temperature}°C`;
-                });
-            } catch(error) {
-                console.log(`接続に失敗しました: ${error}`);
-            }
-        }
-
-        // データをサーバーにPOSTする
-        function postData() {
-            var location = document.getElementById('location').textContent;
-            var temperature = document.getElementById('temperature').textContent;
-
-            fetch('サーバーのURL', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({location: location, temperature: temperature}),
-            })
-            .then(response => response.json())
-            .then(data => console.log('Success:', data))
-            .catch((error) => console.error('Error:', error));
-        }
-
-
-
-        // 地図を初期化して現在地を表示する
         function initMap() {
-            const map = L.map('map').setView([0, 0], 13);
-
+            map = L.map('map').setView([0, 0], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
+        }
 
-            let currentLocationMarker = null;
-
-            function updateMap(position) {
-                const latitude = position.coords.latitude;
-                const longitude = position.coords.longitude;
-                map.setView([latitude, longitude], 13);
-
-                // 現在地マーカーを更新または追加
-                if (currentLocationMarker) {
-                    currentLocationMarker.setLatLng([latitude, longitude]);
-                } else {
-                    currentLocationMarker = L.circleMarker([latitude, longitude], {
-                        color: 'blue',
-                        fillColor: '#f03',
-                        fillOpacity: 0.5,
-                        radius: 10
-                    }).addTo(map);
-                }
-            }
-
-            function error() {
-                console.log("位置情報が取得できませんでした。");
-            }
-
+        function startTracking() {
             if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(updateMap, error, {
+                watchID = navigator.geolocation.watchPosition(updateMap, error, {
                     enableHighAccuracy: true,
                     timeout: 5000,
                     maximumAge: 0
@@ -128,13 +44,40 @@
             }
         }
 
-        
+        function stopTracking() {
+            if (watchID != null) {
+                navigator.geolocation.clearWatch(watchID);
+                watchID = null;
+                map.remove();
+                initMap(); // 地図を再初期化して非表示状態に戻す
+            }
+        }
 
+        function updateMap(position) {
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+            map.setView([latitude, longitude], 13);
 
-        // ページが読み込まれたら実行
+            if (currentLocationMarker) {
+                currentLocationMarker.setLatLng([latitude, longitude]);
+            } else {
+                currentLocationMarker = L.circleMarker([latitude, longitude], {
+                    color: 'blue',
+                    fillColor: '#f03',
+                    fillOpacity: 0.5,
+                    radius: 10
+                }).addTo(map);
+            }
+        }
+
+        function error() {
+            console.log("位置情報が取得できませんでした。");
+        }
+
+        document.getElementById('startButton').addEventListener('click', startTracking);
+        document.getElementById('stopButton').addEventListener('click', stopTracking);
+
         window.onload = function() {
-            updateLocation();
-            connectAndStartNotifications();
             initMap(); // 地図を初期化
         };
     </script>
