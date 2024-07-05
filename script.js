@@ -6,7 +6,7 @@ document.getElementById('sendLocation').addEventListener('click', function() {
             document.body.innerHTML += `<p>緯度: ${latitude}, 経度: ${longitude}</p>`;
 
             // 位置情報をJSON形式でサーバーに送信
-            const response = await fetch('your-server-endpoint', {
+            const response = await fetch('http://localhost:3000/location', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
