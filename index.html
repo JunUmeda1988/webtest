@@ -4,6 +4,13 @@
     <title>スマホWebアプリ</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <style>
+    #map {
+        height: 600px;
+        width: 100%;
+    }
+    </style>
+    
 </head>
 <body>
     <h1>温度と位置情報3</h1>
@@ -11,7 +18,7 @@
     <div id="temperature">温度: 未受信</div>
     <button onclick="postData()">データをサーバーに送信</button>
     <!-- 地図を表示するためのdiv -->
-    <div id="map" style="height: 400px;"></div>
+    <div id="map"></div>
 
     <script>
         // 位置情報を取得し続ける
@@ -76,19 +83,34 @@
             .catch((error) => console.error('Error:', error));
         }
 
-        
+
+
         // 地図を初期化して現在地を表示する
         function initMap() {
-            const map = L.map('map').setView([0, 0], 13); // 仮の中心座標とズームレベル
+            const map = L.map('map').setView([0, 0], 13);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
 
+            let currentLocationMarker = null;
+
             function updateMap(position) {
                 const latitude = position.coords.latitude;
                 const longitude = position.coords.longitude;
                 map.setView([latitude, longitude], 13);
+
+                // 現在地マーカーを更新または追加
+                if (currentLocationMarker) {
+                    currentLocationMarker.setLatLng([latitude, longitude]);
+                } else {
+                    currentLocationMarker = L.circleMarker([latitude, longitude], {
+                        color: 'blue',
+                        fillColor: '#f03',
+                        fillOpacity: 0.5,
+                        radius: 10
+                    }).addTo(map);
+                }
             }
 
             function error() {
@@ -105,6 +127,8 @@
                 console.log("Geolocationはこのブラウザでは使用できません。");
             }
         }
+
+        
 
 
         // ページが読み込まれたら実行
