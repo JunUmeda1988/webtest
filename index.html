@@ -10,29 +10,56 @@
     <button onclick="postData()">データをサーバーに送信</button>
 
     <script>
-        // 位置情報を取得する
-        navigator.geolocation.getCurrentPosition(function(position) {
-            document.getElementById('location').textContent = 
-                '位置情報: 緯度 ' + position.coords.latitude + 
-                ', 経度 ' + position.coords.longitude;
-        });
-
-        // M5Stackからの温度データを受信する（疑似的な例）
-        function receiveTemperatureData() {
-            // ここでは疑似的に温度データを生成しています
-            var temperature = Math.random() * 30;
-            document.getElementById('temperature').textContent = '温度: ' + temperature.toFixed(2) + '°C';
+        // 位置情報を取得し続ける
+        function updateLocation() {
+            navigator.geolocation.watchPosition(function(position) {
+                document.getElementById('location').textContent = 
+                    '位置情報: 緯度 ' + position.coords.latitude + 
+                    ', 経度 ' + position.coords.longitude;
+            }, function(error) {
+                console.log('位置情報の取得に失敗しました:', error);
+            }, {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            });
         }
 
-        // 30秒ごとに温度データを更新する
-        setInterval(receiveTemperatureData, 3000);
+        // BLEデバイスからの温度データを受信する
+        async function connectAndStartNotifications() {
+            try {
+                console.log('BLEデバイスに接続しています...');
+                const device = await navigator.bluetooth.requestDevice({
+                    // 実際にはM5Stackで設定したサービスUUIDを使用してください
+                    filters: [{services: ['heart_rate']}]
+                });
+
+                const server = await device.gatt.connect();
+                console.log('BLEデバイスに接続しました');
+
+                // 実際のサービスとキャラクタリスティックのUUIDを使用してください
+                const service = await server.getPrimaryService('heart_rate');
+                const characteristic = await service.getCharacteristic('heart_rate_measurement');
+
+                characteristic.startNotifications();
+
+                characteristic.addEventListener('characteristicvaluechanged', event => {
+                    const value = event.target.value;
+                    // 温度データを解析するロジックをここに実装
+                    const temperature = value.getUint8(0); // この行はデータ形式に応じて変更してください
+                    console.log(`受信した温度: ${temperature}`);
+                    document.getElementById('temperature').textContent = `温度: ${temperature}°C`;
+                });
+            } catch(error) {
+                console.log(`接続に失敗しました: ${error}`);
+            }
+        }
 
         // データをサーバーにPOSTする
         function postData() {
             var location = document.getElementById('location').textContent;
             var temperature = document.getElementById('temperature').textContent;
 
-            // ここでサーバーへのPOSTリクエストを行います
             fetch('サーバーのURL', {
                 method: 'POST',
                 headers: {
@@ -44,6 +71,12 @@
             .then(data => console.log('Success:', data))
             .catch((error) => console.error('Error:', error));
         }
+
+        // ページが読み込まれたら実行
+        window.onload = function() {
+            updateLocation();
+            connectAndStartNotifications();
+        };
     </script>
 </body>
 </html>
