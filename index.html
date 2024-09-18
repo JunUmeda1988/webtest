@@ -2,83 +2,220 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>スマホWebアプリ</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>温度センサー</title>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
-        #map {
-            height: 600px;
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             width: 100%;
+        }
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.5em;
+        }
+        .info-box {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+            text-align: center;
+            width: 100%;
+        }
+        #map {
+            height: 400px;
+            width: 100%;
+            margin: 10px 0;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #ccc;
+        }
+        .header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+        }
+        .logo {
+            width: 50px;
+            height: 50px;
+            background-color: #ccc;
+            margin-right: 10px;
+        }
+        .drumroll {
+            margin: 20px 0;
+            width: 100%;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            font-size: 1.2em;
         }
     </style>
 </head>
 <body>
-    <h1>温度と位置情報4</h1>
-    <div id="location">位置情報: 取得中...</div>
-    <div id="temperature">温度: 未受信</div>
-    <button id="startButton">スタート</button>
-    <button id="stopButton">ストップ</button>
-    <div id="map"></div>
+    <div class="container">
+        <div class="header">
+            <div class="logo">ロゴ</div>
+            <h1>温度位置情報</h1>
+        </div>
+
+        <div class="drumroll">
+            <label for="deviceSelect">デバイスIDを選択</label>
+            <select id="deviceSelect" onchange="updateDeviceId()">
+                <option value="--">--</option>
+                <!-- 1〜30のドラムロール -->
+                <script>
+                    for (let i = 1; i <= 30; i++) {
+                        document.write('<option value="' + i + '">' + i + '</option>');
+                    }
+                </script>
+            </select>
+        </div>
+
+        <button id="startButton" onclick="startMeasurement()">測定開始</button>
+
+        <div class="info-box" id="measurementInfo" style="display: none;">
+            <p>温度: <span id="temperature">--</span> °C</p>
+            <p>緯度: <span id="latitude">--</span></p>
+            <p>経度: <span id="longitude">--</span></p>
+        </div>
+
+        <div id="map"></div>
+
+        <button id="endButton" style="display: none;" onclick="endMeasurement()">測定終了</button>
+    </div>
 
     <script>
-        let map;
-        let watchID;
-        let currentLocationMarker = null;
+        let temperatureCharacteristic;
+        let map, marker;
 
-        function initMap() {
-            map = L.map('map').setView([0, 0], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
+        function updateDeviceId() {
+            const selectedDeviceId = document.getElementById("deviceSelect").value;
         }
 
-        function startTracking() {
-            if (navigator.geolocation) {
-                watchID = navigator.geolocation.watchPosition(updateMap, error, {
-                    enableHighAccuracy: true,
-                    timeout: 5000,
-                    maximumAge: 0
+        function startMeasurement() {
+            const selectedDeviceId = document.getElementById("deviceSelect").value;
+            if (selectedDeviceId === "--") {
+                alert("デバイスIDを選択してください。");
+                return;
+            }
+
+            document.getElementById('startButton').style.display = 'none';
+            document.getElementById('measurementInfo').style.display = 'block';
+            document.getElementById('endButton').style.display = 'block';
+            connectBLE(selectedDeviceId);
+            getLocation();
+            setInterval(getLocation, 60000); // 1分ごとにGPSを更新
+            setInterval(uploadData, 60000); // 1分ごとにデータをアップロード
+        }
+
+        function endMeasurement() {
+            document.getElementById('startButton').style.display = 'block';
+            document.getElementById('measurementInfo').style.display = 'none';
+            document.getElementById('endButton').style.display = 'none';
+        }
+
+        // BLE接続
+        async function connectBLE(deviceId) {
+            const deviceName = `M5Stamp_Temp_${deviceId}`;
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['1809'] // 温度サービスUUID
                 });
+
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService('1809');
+                temperatureCharacteristic = await service.getCharacteristic('2A1C');
+
+                temperatureCharacteristic.startNotifications();
+                temperatureCharacteristic.addEventListener('characteristicvaluechanged', handleTemperatureChanged);
+
+                alert("BLEデバイスに接続しました。");
+            } catch (error) {
+                console.error('BLE接続エラー: ', error);
+                alert("デバイスの接続に失敗しました。");
+            }
+        }
+
+        function handleTemperatureChanged(event) {
+            const value = new TextDecoder().decode(event.target.value);
+            document.getElementById('temperature').textContent = value;
+        }
+
+        // 現在地を地図の中心にする
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition, handleLocationError);
             } else {
-                console.log("Geolocationはこのブラウザでは使用できません。");
+                alert("このブラウザではGPSがサポートされていません。");
             }
         }
 
-        function stopTracking() {
-            if (watchID != null) {
-                navigator.geolocation.clearWatch(watchID);
-                watchID = null;
-                map.remove();
-                initMap(); // 地図を再初期化して非表示状態に戻す
+        function showPosition(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            document.getElementById('latitude').textContent = lat;
+            document.getElementById('longitude').textContent = lon;
+
+            if (map && marker) {
+                map.removeLayer(marker);
             }
+
+            // 現在地を地図の中心に設定
+            map.setView([lat, lon], 13);
+            marker = L.marker([lat, lon]).addTo(map);
         }
 
-        function updateMap(position) {
-            const latitude = position.coords.latitude;
-            const longitude = position.coords.longitude;
-            map.setView([latitude, longitude], 13);
-
-            if (currentLocationMarker) {
-                currentLocationMarker.setLatLng([latitude, longitude]);
-            } else {
-                currentLocationMarker = L.circleMarker([latitude, longitude], {
-                    color: 'blue',
-                    fillColor: '#f03',
-                    fillOpacity: 0.5,
-                    radius: 10
-                }).addTo(map);
-            }
+        function handleLocationError(error) {
+            alert(`現在地の取得に失敗しました: ${error.message}`);
         }
 
-        function error() {
-            console.log("位置情報が取得できませんでした。");
+        async function uploadData() {
+            const temp = document.getElementById('temperature').textContent;
+            const lat = document.getElementById('latitude').textContent;
+            const lon = document.getElementById('longitude').textContent;
+            await fetch('http://harvest.soracom.io', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    temp: parseFloat(temp),
+                    lat: parseFloat(lat),
+                    lon: parseFloat(lon)
+                })
+            });
         }
-
-        document.getElementById('startButton').addEventListener('click', startTracking);
-        document.getElementById('stopButton').addEventListener('click', stopTracking);
 
         window.onload = function() {
-            initMap(); // 地図を初期化
+            map = L.map('map').setView([35.681236, 139.767125], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
         };
     </script>
 </body>
