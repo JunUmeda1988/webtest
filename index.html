@@ -35,7 +35,7 @@
             width: 100%;
         }
         #map {
-            height: 400px;
+            height: 300px;
             width: 100%;
             margin: 10px 0;
         }
@@ -140,25 +140,28 @@
 
         // BLE接続
         async function connectBLE(deviceId) {
-            const deviceName = `M5Stamp_Temp_${deviceId}`;
-            try {
-                const device = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: ['1809'] // 温度サービスUUID
-                });
+        const deviceName = `M5Stamp_Temp_${deviceId}`;
+        try {
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{
+                    name: deviceName
+                }],
+                optionalServices: [0x1809] // 温度サービスUUIDを指定
+            });
 
-                const server = await device.gatt.connect();
-                const service = await server.getPrimaryService('1809');
-                temperatureCharacteristic = await service.getCharacteristic('2A1C');
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(0x1809);
+            // temperatureCharacteristic = await service.getCharacteristic('health_thermometer');
+            temperatureCharacteristic = await service.getCharacteristic(0x2A1C);
 
-                temperatureCharacteristic.startNotifications();
-                temperatureCharacteristic.addEventListener('characteristicvaluechanged', handleTemperatureChanged);
+            await temperatureCharacteristic.startNotifications();
+            temperatureCharacteristic.addEventListener('characteristicvaluechanged', handleTemperatureChanged);
 
-                alert("BLEデバイスに接続しました。");
-            } catch (error) {
-                console.error('BLE接続エラー: ', error);
-                alert("デバイスの接続に失敗しました。");
-            }
+            alert("BLEデバイスに接続しました。");
+        } catch (error) {
+            console.error('BLE接続エラー: ', error);
+            alert("デバイスの接続に失敗しました。");
+                }
         }
 
         function handleTemperatureChanged(event) {
@@ -186,7 +189,7 @@
             }
 
             // 現在地を地図の中心に設定
-            map.setView([lat, lon], 13);
+            map.setView([lat, lon], 14);
             marker = L.marker([lat, lon]).addTo(map);
         }
 
@@ -198,7 +201,8 @@
             const temp = document.getElementById('temperature').textContent;
             const lat = document.getElementById('latitude').textContent;
             const lon = document.getElementById('longitude').textContent;
-            await fetch('http://harvest.soracom.io', {
+            await fetch('https://webhook.site/', {
+            // await fetch('http://harvest.soracom.io', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -212,7 +216,7 @@
         }
 
         window.onload = function() {
-            map = L.map('map').setView([35.681236, 139.767125], 13);
+            map = L.map('map').setView([35.681236, 139.767125], 4);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
