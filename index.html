@@ -1,3 +1,5 @@
+<!-- 20240922 weblock追加 -->
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -112,11 +114,43 @@
         let temperatureCharacteristic;
         let map, marker;
 
+        // Wake Lock API用の変数
+        let wakeLock = null;
+
+        // ウェイクロックをリクエストする関数
+        async function requestWakeLock() {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                wakeLock.addEventListener('release', () => {
+                    console.log('Wake Lock was released');
+                });
+                console.log('Wake Lock is active');
+            } catch (err) {
+                console.error(`${err.name}, ${err.message}`);
+            }
+        }
+
+        // ウェイクロックを解放する関数
+        async function releaseWakeLock() {
+            if (wakeLock !== null) {
+                await wakeLock.release();
+                wakeLock = null;
+                console.log('Wake Lock released');
+            }
+        }
+
+        // ページの表示状態が変わったときにウェイクロックを再取得
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                await requestWakeLock();
+            }
+        });
+
         function updateDeviceId() {
             const selectedDeviceId = document.getElementById("deviceSelect").value;
         }
 
-        function startMeasurement() {
+        async function startMeasurement() {
             const selectedDeviceId = document.getElementById("deviceSelect").value;
             if (selectedDeviceId === "--") {
                 alert("デバイスIDを選択してください。");
@@ -130,38 +164,44 @@
             getLocation();
             setInterval(getLocation, 60000); // 1分ごとにGPSを更新
             setInterval(uploadData, 60000); // 1分ごとにデータをアップロード
+
+            // ウェイクロックをリクエスト
+            await requestWakeLock();
         }
 
-        function endMeasurement() {
+        async function endMeasurement() {
             document.getElementById('startButton').style.display = 'block';
             document.getElementById('measurementInfo').style.display = 'none';
             document.getElementById('endButton').style.display = 'none';
+
+            // ウェイクロックを解放
+            await releaseWakeLock();
         }
 
         // BLE接続
         async function connectBLE(deviceId) {
-        const deviceName = `M5Stamp_Temp_${deviceId}`;
-        try {
-            const device = await navigator.bluetooth.requestDevice({
-                filters: [{
-                    name: deviceName
-                }],
-                optionalServices: [0x1809] // 温度サービスUUIDを指定
-            });
+            const deviceName = `M5Stamp_Temp_${deviceId}`;
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{
+                        name: deviceName
+                    }],
+                    optionalServices: [0x1809] // 温度サービスUUIDを指定
+                });
 
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService(0x1809);
-            // temperatureCharacteristic = await service.getCharacteristic('health_thermometer');
-            temperatureCharacteristic = await service.getCharacteristic(0x2A1C);
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(0x1809);
+                // temperatureCharacteristic = await service.getCharacteristic('health_thermometer');
+                temperatureCharacteristic = await service.getCharacteristic(0x2A1C);
 
-            await temperatureCharacteristic.startNotifications();
-            temperatureCharacteristic.addEventListener('characteristicvaluechanged', handleTemperatureChanged);
+                await temperatureCharacteristic.startNotifications();
+                temperatureCharacteristic.addEventListener('characteristicvaluechanged', handleTemperatureChanged);
 
-            alert("BLEデバイスに接続しました。");
-        } catch (error) {
-            console.error('BLE接続エラー: ', error);
-            alert("デバイスの接続に失敗しました。");
-                }
+                alert("BLEデバイスに接続しました。");
+            } catch (error) {
+                console.error('BLE接続エラー: ', error);
+                alert("デバイスの接続に失敗しました。");
+            }
         }
 
         function handleTemperatureChanged(event) {
@@ -202,7 +242,7 @@
             const lat = document.getElementById('latitude').textContent;
             const lon = document.getElementById('longitude').textContent;
             // await fetch('https://webhook.site/', {
-            await fetch('https://harvest.soracom.io', {
+            await fetch('http://harvest.soracom.io', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
