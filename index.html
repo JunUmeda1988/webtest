@@ -162,8 +162,8 @@
             document.getElementById('endButton').style.display = 'block';
             connectBLE(selectedDeviceId);
             getLocation();
-            setInterval(getLocation, 60000); // 1分ごとにGPSを更新
-            setInterval(uploadData, 60000); // 1分ごとにデータをアップロード
+            setInterval(getLocation, 10000); // 1分ごとにGPSを更新
+            setInterval(uploadData, 10000); // 1分ごとにデータをアップロード
 
             // ウェイクロックをリクエスト
             await requestWakeLock();
