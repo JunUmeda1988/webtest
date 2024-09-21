@@ -241,19 +241,28 @@
             const temp = document.getElementById('temperature').textContent;
             const lat = document.getElementById('latitude').textContent;
             const lon = document.getElementById('longitude').textContent;
-            // await fetch('https://webhook.site/', {
-            await fetch('http://harvest.soracom.io', {
+
+            try{const response = await fetch('http://harvest.soracom.io', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    temp: parseFloat(temp),
-                    lat: parseFloat(lat),
-                    lon: parseFloat(lon)
+                    "temp": parseFloat(temp),
+                    "lat": parseFloat(lat),
+                    "lon": parseFloat(lon)
                 })
             });
-        }
+            if (!response.ok) {
+            throw new Error(`HTTPエラー! ステータス: ${response.status}`);
+            }   
+                    // レスポンスの内容をログに出力（必要に応じて）
+                    const responseData = await response.json();
+                    console.log('データが正常にアップロードされました:', responseData);
+                } catch (error) {
+                    console.error('データのアップロード中にエラーが発生しました:', error);
+                }
+            }
 
         window.onload = function() {
             map = L.map('map').setView([35.681236, 139.767125], 4);
